@@ -5,6 +5,21 @@ A comprehensive toolkit for system fingerprinting and change analysis, consistin
 1. **systemRecord** - System fingerprinting tool that captures system state
 2. **systemDiff** - Web-based comparison tool for analyzing system changes
 
+![systemDiff Web Interface](docs/systemdiff-screenshot.png)
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Tools](#tools)
+  - [systemRecord](#systemrecord)
+  - [systemDiff](#systemdiff)
+- [Quick Start](#quick-start)
+- [Documentation](#documentation)
+- [Installation](#installation)
+- [Docker Support](#docker-support)
+- [Use Cases](#use-cases)
+- [Contributing](#contributing)
+
 ## Overview
 
 System Inspector helps you track and analyze system changes by creating detailed fingerprints of your system before and after modifications (such as software installations, updates, or configuration changes). This is particularly useful for:
@@ -46,21 +61,25 @@ A command-line tool that creates comprehensive system fingerprints with two dist
 
 A web-based application for comparing systemRecord projects:
 
-- Interactive project upload interface with mode detection
-- Side-by-side system state comparison
-- File-level diff visualization
-- **Mode 2 Configuration Generation** - Automatically creates targeted configs from Mode 1 comparisons
-- Change statistics and analytics
-- Export capabilities (JSON, CSV, YAML configs)
-- Modern responsive web interface
+![systemDiff Web Interface](docs/systemdiff-screenshot.png)
 
 **Key Features:**
-- Drag-and-drop project upload with mode recognition
-- Real-time comparison results
-- Detailed file diff viewer
-- Change categorization (new, modified, deleted)
-- Automatic Mode 2 config generation from Mode 1 projects
-- Export and reporting capabilities
+- **Interactive Project Upload**: Drag-and-drop or browse upload for systemRecord tar files with mode recognition
+- **Real-time Comparison Results**: Side-by-side system state comparison with change statistics
+- **Path Filtering**: Hide unwanted files using wildcard patterns (node_modules/, *.log, etc.)
+- **Detailed File Diff Viewer**: Text diff visualization with syntax highlighting
+- **Mode 2 Configuration Generation**: Automatically creates targeted configs from Mode 1 comparisons
+- **Change Analytics**: Comprehensive statistics and summaries of system changes
+- **Export Capabilities**: Export comparison results as JSON, CSV, and YAML configs
+- **Modern Responsive Interface**: Bootstrap-based UI that works on desktop and mobile
+
+**Supported Features:**
+- Project management with persistent storage
+- Change categorization (new, modified, deleted files)
+- File content comparison and diff visualization
+- Automatic cleanup of stale projects
+- Thread-safe multi-user support
+- Docker containerization for easy deployment
 
 ## Quick Start
 
@@ -109,6 +128,18 @@ Access the web interface at http://localhost:8080 and:
 2. Generate Mode 2 configuration directly in the web interface
 3. Upload Mode 2 projects for detailed file content comparison
 4. Explore file differences and export results
+
+## Documentation
+
+### 📚 Detailed Documentation
+- **[systemRecord Documentation](systemRecord/docs/README.md)** - Complete guide for system fingerprinting
+- **[systemDiff Documentation](systemDiff/docs/README.md)** - Web interface usage and API reference
+
+### 🎯 Quick Links
+- **systemRecord Features**: Configuration management, Docker usage, CLI reference
+- **systemDiff Features**: Web interface guide, comparison workflows, export options
+- **API Documentation**: REST endpoints for programmatic access
+- **Docker Deployment**: Container setup and production deployment
 
 ## Installation
 
@@ -270,6 +301,51 @@ systemInspector/
     ├── docker-compose.yml    # Multi-service deployment
     └── docs/README.md        # Documentation
 ```
+
+## Use Cases
+
+### 🔧 **Software Installation Impact Analysis**
+Track what changes when installing software packages:
+```bash
+# Before installation
+./run.sh record -c config/mode1.yaml -m 1 before_install
+
+# Install your software
+sudo apt install my-software
+
+# After installation  
+./run.sh record -c config/mode1.yaml -m 1 after_install
+
+# Compare in systemDiff to see all changes
+```
+
+### 🛡️ **Security Auditing**
+Monitor system changes for security compliance:
+- Track configuration file modifications
+- Detect unauthorized file changes
+- Monitor privilege escalations
+- Audit system updates
+
+### 📋 **Change Management**
+Document and approve system changes:
+- Create before/after snapshots
+- Generate change reports for approval
+- Track configuration drift
+- Maintain compliance documentation
+
+### 🏗️ **Development Environment Tracking**
+Keep development environments consistent:
+- Document environment setup procedures
+- Track dependency installations
+- Compare environments across teams
+- Automate environment replication
+
+### 💾 **Backup Verification**
+Verify backup integrity and completeness:
+- Compare system state before/after restore
+- Identify missing or corrupted files
+- Validate backup procedures
+- Monitor backup effectiveness
 
 ## Security Considerations
 

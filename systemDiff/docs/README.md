@@ -1,18 +1,36 @@
 # systemDiff - System Comparison Tool
 
+![systemDiff Web Interface](../../docs/systemdiff-screenshot.png)
+
 ## Overview
 
 systemDiff is a web-based tool for comparing systemRecord project files and visualizing differences between system states. It provides an intuitive interface for analyzing changes, viewing file diffs, and generating reports.
 
-## Features
+## Key Features
 
-- **Web-based Interface**: Modern, responsive UI for easy project management
-- **Project Upload**: Drag-and-drop or browse upload for systemRecord tar files
-- **Interactive Comparison**: Side-by-side comparison of system states
+### 🎯 **Interactive Project Management**
+- **Drag-and-drop Upload**: Simply drag systemRecord tar files into the interface
+- **Mode Detection**: Automatically detects Mode 1 vs Mode 2 projects
+- **Project Persistence**: Projects remain loaded across browser sessions
+- **Real-time Updates**: Live project management with refresh capabilities
+
+### 🔍 **Advanced Comparison**
+- **Side-by-side Analysis**: Compare before/after system states
+- **Path Filtering**: Hide unwanted files using patterns like `node_modules/`, `*.log`
+- **Change Categories**: Clear visualization of new, modified, and deleted files
+- **Statistics Dashboard**: Quick overview of changes with counts and summaries
+
+### 📱 **Modern Web Interface**
+- **Responsive Design**: Works on desktop, tablet, and mobile devices
+- **Bootstrap UI**: Clean, professional interface with intuitive navigation
+- **Real-time Feedback**: Progress indicators and status notifications
+- **Thread-safe**: Supports multiple concurrent users
+
+### 🛠 **Developer Features**
 - **File Diff Viewer**: Detailed text diff visualization with syntax highlighting
-- **Change Analytics**: Statistics and summaries of system changes
-- **Export Capabilities**: Export comparison results as JSON or CSV
-- **Real-time Updates**: Live project management and comparison results
+- **Export Options**: Export results as JSON, CSV, or YAML configurations
+- **Mode 2 Config Generation**: Automatically create targeted configurations
+- **REST API**: Programmatic access to all comparison features
 
 ## Architecture
 

@@ -12,17 +12,24 @@ import tarfile
 import tempfile
 import shutil
 import difflib
+import threading
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
 
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, make_response
 from flask_cors import CORS
 import logging
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS to allow requests from frontend
+CORS(app, 
+     origins=['*'],  # Allow all origins for development
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     allow_headers=['Content-Type', 'Authorization'],
+     supports_credentials=True)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -44,57 +51,130 @@ class ProjectAnalyzer:
     
     def __init__(self):
         self.projects = {}
+        self.projects_cache_file = "/tmp/systemdiff_uploads/projects_cache.json"
+        self._lock = threading.RLock()  # Reentrant lock for thread safety
+        self._load_projects_cache()
     
-    def load_project(self, project_id: str, tar_path: str) -> Dict:
-        """Load a project from tar file and extract manifest."""
-        logger.info(f"Loading project {project_id} from {tar_path}")
-        
+    def _load_projects_cache(self):
+        """Load projects from cache file."""
         try:
-            # Create temporary directory for extraction
-            temp_dir = tempfile.mkdtemp(prefix=f"project_{project_id}_")
-            
-            # Extract tar file
-            with tarfile.open(tar_path, 'r:*') as tar:
-                tar.extractall(temp_dir)
-            
-            # Load manifest
-            manifest_path = os.path.join(temp_dir, 'manifest.json')
-            if not os.path.exists(manifest_path):
-                raise ValueError("No manifest.json found in project file")
-            
-            with open(manifest_path, 'r') as f:
-                manifest = json.load(f)
-            
-            # Store project info
-            project_info = {
-                'id': project_id,
-                'manifest': manifest,
-                'temp_dir': temp_dir,
-                'tar_path': tar_path,
-                'loaded_at': datetime.now().isoformat()
-            }
-            
-            self.projects[project_id] = project_info
-            
-            return {
-                'id': project_id,
-                'metadata': manifest.get('metadata', {}),
-                'file_count': len(manifest.get('files', {})),
-                'directory_count': len(manifest.get('directories', {})),
-                'error_count': len(manifest.get('errors', []))
-            }
-        
+            if os.path.exists(self.projects_cache_file):
+                with open(self.projects_cache_file, 'r') as f:
+                    cache_data = json.load(f)
+                    
+                # Validate and reload projects
+                for project_id, project_info in cache_data.items():
+                    tar_path = project_info.get('tar_path')
+                    if tar_path and os.path.exists(tar_path):
+                        try:
+                            # Reload project from tar file
+                            self.load_project(project_id, tar_path, from_cache=True)
+                            logger.info(f"Restored project {project_id} from cache")
+                        except Exception as e:
+                            logger.warning(f"Failed to restore project {project_id}: {e}")
+                    
         except Exception as e:
-            logger.error(f"Error loading project {project_id}: {e}")
-            raise
+            logger.warning(f"Failed to load projects cache: {e}")
+            self.projects = {}
+    
+    def _save_projects_cache(self):
+        """Save projects to cache file."""
+        try:
+            # Create simplified cache data
+            cache_data = {}
+            for project_id, project_info in self.projects.items():
+                cache_data[project_id] = {
+                    'tar_path': project_info.get('tar_path'),
+                    'loaded_at': project_info.get('loaded_at')
+                }
+            
+            os.makedirs(os.path.dirname(self.projects_cache_file), exist_ok=True)
+            with open(self.projects_cache_file, 'w') as f:
+                json.dump(cache_data, f, indent=2)
+                
+        except Exception as e:
+            logger.error(f"Failed to save projects cache: {e}")
+    
+    def load_project(self, project_id: str, tar_path: str, from_cache: bool = False) -> Dict:
+        """Load a project from tar file and extract manifest."""
+        with self._lock:  # Thread safety
+            logger.info(f"Loading project {project_id} from {tar_path}")
+            
+            try:
+                # Verify file exists and is readable
+                if not os.path.exists(tar_path):
+                    raise FileNotFoundError(f"Project file not found: {tar_path}")
+                
+                if not os.access(tar_path, os.R_OK):
+                    raise PermissionError(f"Cannot read project file: {tar_path}")
+                
+                # Check file size
+                file_size = os.path.getsize(tar_path)
+                logger.info(f"Project file size: {file_size} bytes")
+                
+                if file_size == 0:
+                    raise ValueError("Project file is empty")
+                
+                # Create temporary directory for extraction
+                temp_dir = tempfile.mkdtemp(prefix=f"project_{project_id}_")
+                logger.info(f"Extracting to temporary directory: {temp_dir}")
+                
+                # Extract tar file with better error handling
+                try:
+                    with tarfile.open(tar_path, 'r:*') as tar:
+                        # Check if tar file is valid
+                        tar_members = tar.getmembers()
+                        logger.info(f"Tar file contains {len(tar_members)} members")
+                        tar.extractall(temp_dir)
+                except tarfile.TarError as e:
+                    raise ValueError(f"Invalid tar file format: {e}")
+                
+                # Load manifest
+                manifest_path = os.path.join(temp_dir, 'manifest.json')
+                if not os.path.exists(manifest_path):
+                    # List contents of temp_dir for debugging
+                    contents = os.listdir(temp_dir)
+                    logger.error(f"Manifest not found. Directory contents: {contents}")
+                    raise ValueError("No manifest.json found in project file")
+                
+                with open(manifest_path, 'r') as f:
+                    manifest = json.load(f)
+                
+                # Store project info
+                project_info = {
+                    'id': project_id,
+                    'manifest': manifest,
+                    'temp_dir': temp_dir,
+                    'tar_path': tar_path,
+                    'loaded_at': datetime.now().isoformat()
+                }
+                
+                self.projects[project_id] = project_info
+                
+                # Save projects cache (but not when loading from cache to avoid recursion)
+                if not from_cache:
+                    self._save_projects_cache()
+                
+                return {
+                    'id': project_id,
+                    'metadata': manifest.get('metadata', {}),
+                    'file_count': len(manifest.get('files', {})),
+                    'directory_count': len(manifest.get('directories', {})),
+                    'error_count': len(manifest.get('errors', []))
+                }
+                
+            except Exception as e:
+                logger.error(f"Error loading project {project_id}: {e}")
+                raise
     
     def get_project_summary(self, project_id: str) -> Dict:
         """Get summary information for a project."""
-        if project_id not in self.projects:
-            raise ValueError(f"Project {project_id} not found")
-        
-        project = self.projects[project_id]
-        manifest = project['manifest']
+        with self._lock:
+            if project_id not in self.projects:
+                raise ValueError(f"Project {project_id} not found")
+            
+            project = self.projects[project_id]
+            manifest = project['manifest']
         
         return {
             'id': project_id,
@@ -110,13 +190,14 @@ class ProjectAnalyzer:
     
     def compare_projects(self, project1_id: str, project2_id: str) -> Dict:
         """Compare two projects and return differences."""
-        if project1_id not in self.projects or project2_id not in self.projects:
-            raise ValueError("One or both projects not found")
-        
-        logger.info(f"Comparing projects {project1_id} and {project2_id}")
-        
-        project1 = self.projects[project1_id]
-        project2 = self.projects[project2_id]
+        with self._lock:
+            if project1_id not in self.projects or project2_id not in self.projects:
+                raise ValueError("One or both projects not found")
+            
+            logger.info(f"Comparing projects {project1_id} and {project2_id}")
+            
+            project1 = self.projects[project1_id]
+            project2 = self.projects[project2_id]
         
         manifest1 = project1['manifest']
         manifest2 = project2['manifest']
@@ -373,69 +454,174 @@ class ProjectAnalyzer:
         }
         
         return mode2_config
+    
+    def delete_project(self, project_id: str):
+        """Delete a project and clean up resources."""
+        with self._lock:
+            if project_id in self.projects:
+                project = self.projects[project_id]
+                # Clean up temporary directory
+                temp_dir = project.get('temp_dir')
+                if temp_dir and os.path.exists(temp_dir):
+                    try:
+                        shutil.rmtree(temp_dir)
+                        logger.info(f"Cleaned up temp directory for project {project_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up temp directory {temp_dir}: {e}")
+                
+                # Remove from projects dict
+                del self.projects[project_id]
+                
+                # Update cache
+                self._save_projects_cache()
+                
+                logger.info(f"Deleted project {project_id}")
+            else:
+                logger.warning(f"Attempted to delete non-existent project {project_id}")
+    
+    def cleanup_stale_projects(self):
+        """Remove projects whose tar files no longer exist."""
+        with self._lock:
+            stale_projects = []
+            for project_id, project_info in self.projects.items():
+                tar_path = project_info.get('tar_path')
+                if tar_path and not os.path.exists(tar_path):
+                    stale_projects.append(project_id)
+            
+            for project_id in stale_projects:
+                logger.info(f"Removing stale project {project_id}")
+                self.delete_project(project_id)
+            
+            if stale_projects:
+                logger.info(f"Cleaned up {len(stale_projects)} stale projects")
 
 # Global analyzer instance
 analyzer = ProjectAnalyzer()
 
 def allowed_file(filename):
     """Check if file extension is allowed."""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS or \
-           filename.endswith('.tar.gz')
+    if not filename or '.' not in filename:
+        return False
+    
+    # Check for .tar.gz files first
+    if filename.lower().endswith('.tar.gz'):
+        return True
+    
+    # Check single extensions
+    extension = filename.rsplit('.', 1)[1].lower()
+    return extension in ALLOWED_EXTENSIONS
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
     return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
 
+@app.before_request
+def before_request():
+    """Handle CORS preflight requests."""
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "*")
+        response.headers.add('Access-Control-Allow-Methods', "*")
+        return response
+
+@app.after_request
+def after_request(response):
+    """Add CORS headers to all responses."""
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 @app.route('/api/upload', methods=['POST'])
 def upload_project():
     """Upload a project file."""
+    logger.info(f"Upload request received")
+    
     if 'file' not in request.files:
+        logger.error("No file provided in request")
         return jsonify({'error': 'No file provided'}), 400
     
     file = request.files['file']
     project_id = request.form.get('project_id')
     
+    logger.info(f"Upload request: file={file.filename}, project_id={project_id}")
+    
     if file.filename == '':
+        logger.error("No file selected")
         return jsonify({'error': 'No file selected'}), 400
     
     if not project_id:
+        logger.error("No project ID provided")
         return jsonify({'error': 'Project ID required'}), 400
     
     if not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid file type'}), 400
+        logger.error(f"Invalid file type: {file.filename}")
+        return jsonify({'error': f'Invalid file type. Allowed types: {ALLOWED_EXTENSIONS}'}), 400
     
     try:
         # Save uploaded file
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{project_id}_{filename}")
+        logger.info(f"Saving file to: {filepath}")
+        
         file.save(filepath)
+        logger.info(f"File saved successfully, size: {os.path.getsize(filepath)} bytes")
         
         # Load project
         project_summary = analyzer.load_project(project_id, filepath)
+        logger.info(f"Project {project_id} loaded successfully")
         
         return jsonify({
             'message': 'Project uploaded successfully',
             'project': project_summary
         })
     
+    except ValueError as e:
+        logger.error(f"Validation error uploading project {project_id}: {e}")
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
-        logger.error(f"Error uploading project: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Unexpected error uploading project {project_id}: {e}")
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 @app.route('/api/projects', methods=['GET'])
 def list_projects():
     """List all loaded projects."""
-    projects = []
-    for project_id in analyzer.projects:
-        try:
-            summary = analyzer.get_project_summary(project_id)
-            projects.append(summary)
-        except Exception as e:
-            logger.error(f"Error getting summary for project {project_id}: {e}")
+    logger.info("GET /api/projects request received")
     
-    return jsonify({'projects': projects})
+    try:
+        # Clean up stale projects first
+        analyzer.cleanup_stale_projects()
+        
+        # Use lock to ensure thread-safe access to projects
+        with analyzer._lock:
+            projects = []
+            project_ids = list(analyzer.projects.keys())
+            logger.info(f"Found {len(project_ids)} projects: {project_ids}")
+            
+            for project_id in project_ids:
+                try:
+                    # Double-check the project still exists
+                    if project_id in analyzer.projects:
+                        summary = analyzer.get_project_summary(project_id)
+                        projects.append(summary)
+                        logger.info(f"Added project {project_id} to response")
+                    else:
+                        logger.warning(f"Project {project_id} disappeared during iteration")
+                except Exception as e:
+                    logger.error(f"Error getting summary for project {project_id}: {e}")
+            
+            logger.info(f"Returning {len(projects)} projects")
+            return jsonify({
+                'projects': projects,
+                'total_count': len(projects),
+                'timestamp': datetime.now().isoformat()
+            })
+    
+    except Exception as e:
+        logger.error(f"Unexpected error in list_projects: {e}")
+        return jsonify({'error': f'Failed to list projects: {str(e)}'}), 500
 
 @app.route('/api/projects/<project_id>', methods=['GET'])
 def get_project(project_id):
@@ -453,7 +639,7 @@ def get_project(project_id):
 def delete_project(project_id):
     """Delete a project."""
     try:
-        analyzer.cleanup_project(project_id)
+        analyzer.delete_project(project_id)
         return jsonify({'message': 'Project deleted successfully'})
     except Exception as e:
         logger.error(f"Error deleting project {project_id}: {e}")
@@ -462,13 +648,17 @@ def delete_project(project_id):
 @app.route('/api/compare/<project1_id>/<project2_id>', methods=['GET'])
 def compare_projects(project1_id, project2_id):
     """Compare two projects."""
+    logger.info(f"Compare request: {project1_id} vs {project2_id}")
+    logger.info(f"Available projects: {list(analyzer.projects.keys())}")
+    
     try:
         comparison = analyzer.compare_projects(project1_id, project2_id)
         return jsonify(comparison)
     except ValueError as e:
+        logger.error(f"ValueError comparing projects {project1_id} vs {project2_id}: {e}")
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        logger.error(f"Error comparing projects: {e}")
+        logger.error(f"Unexpected error comparing projects {project1_id} vs {project2_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/diff/<project1_id>/<project2_id>', methods=['POST'])
