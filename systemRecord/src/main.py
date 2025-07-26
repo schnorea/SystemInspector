@@ -30,11 +30,19 @@ class SystemRecorder:
         self.output_dir.mkdir(exist_ok=True)
         self.mode = mode
         
+        # Detect if running in Docker
+        self.is_docker = self._detect_docker_environment()
+        self.docker_mount_point = "/system" if self.is_docker else ""
+        
         # Load configuration
         self.config = self._load_config()
         
         # Setup logging
         self._setup_logging()
+        
+        # Log Docker environment detection
+        if self.is_docker:
+            self.logger.info("Docker environment detected - mapping paths to /system mount")
         
         # Initialize data structures
         self.manifest = {
@@ -50,6 +58,52 @@ class SystemRecorder:
             "directories": {},
             "errors": []
         }
+    
+    def _detect_docker_environment(self) -> bool:
+        """Detect if running inside a Docker container."""
+        # Check for common Docker indicators
+        docker_indicators = [
+            # Check for /.dockerenv file
+            os.path.exists('/.dockerenv'),
+            # Check if /system mount point exists (our Docker setup)
+            os.path.exists('/system') and os.path.ismount('/system'),
+            # Check for container environment variables
+            os.environ.get('container') == 'docker',
+            # Check cgroup for docker
+            self._check_cgroup_for_docker()
+        ]
+        
+        is_docker = any(docker_indicators)
+        return is_docker
+    
+    def _check_cgroup_for_docker(self) -> bool:
+        """Check if running in Docker by examining cgroup."""
+        try:
+            with open('/proc/1/cgroup', 'r') as f:
+                content = f.read()
+                return 'docker' in content or 'containerd' in content
+        except (FileNotFoundError, PermissionError):
+            return False
+    
+    def _map_path_for_docker(self, path: str) -> str:
+        """Map host paths to Docker container paths."""
+        if not self.is_docker:
+            return path
+        
+        # If path starts with '/', it's an absolute host path that needs mapping
+        if path.startswith('/'):
+            return f"/system{path}"
+        return path
+    
+    def _map_pattern_for_docker(self, pattern: str) -> str:
+        """Map exclude/include patterns for Docker environment."""
+        if not self.is_docker:
+            return pattern
+        
+        # If pattern starts with '/', map it to /system prefix
+        if pattern.startswith('/'):
+            return f"/system{pattern}"
+        return pattern
     
     def _load_config(self) -> Dict:
         """Load configuration from YAML file."""
@@ -84,7 +138,9 @@ class SystemRecorder:
             # Check exclusion patterns
             exclude_patterns = self.config.get('paths', {}).get('exclude', [])
             if exclude_patterns:
-                excluded = any(path_obj.match(pattern) for pattern in exclude_patterns)
+                # Map patterns for Docker environment
+                mapped_patterns = [self._map_pattern_for_docker(pattern) for pattern in exclude_patterns]
+                excluded = any(path_obj.match(pattern) for pattern in mapped_patterns)
                 if excluded:
                     return False
             return True
@@ -94,14 +150,18 @@ class SystemRecorder:
             # Check inclusion patterns
             include_patterns = self.config.get('paths', {}).get('include', [])
             if include_patterns:
-                included = any(path_obj.match(pattern) for pattern in include_patterns)
+                # Map patterns for Docker environment
+                mapped_patterns = [self._map_pattern_for_docker(pattern) for pattern in include_patterns]
+                included = any(path_obj.match(pattern) for pattern in mapped_patterns)
                 if not included:
                     return False
             
             # Check exclusion patterns
             exclude_patterns = self.config.get('paths', {}).get('exclude', [])
             if exclude_patterns:
-                excluded = any(path_obj.match(pattern) for pattern in exclude_patterns)
+                # Map patterns for Docker environment
+                mapped_patterns = [self._map_pattern_for_docker(pattern) for pattern in exclude_patterns]
+                excluded = any(path_obj.match(pattern) for pattern in mapped_patterns)
                 if excluded:
                     return False
         
@@ -256,7 +316,10 @@ class SystemRecorder:
         # Get paths to scan from configuration
         scan_paths = self.config.get('paths', {}).get('scan', ['/'])
         
-        for path in scan_paths:
+        # Map scan paths for Docker environment
+        mapped_scan_paths = [self._map_path_for_docker(path) for path in scan_paths]
+        
+        for path in mapped_scan_paths:
             if os.path.exists(path):
                 self._scan_directory(path)
             else:
