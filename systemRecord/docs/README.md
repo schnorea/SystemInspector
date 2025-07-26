@@ -57,8 +57,24 @@ python src/main.py before_install -c config/default.yaml -o /tmp/output
 ### Docker Usage
 
 ```bash
-# Mount system directories and configuration
-docker run -v /:/system:ro -v $(pwd)/config:/config -v $(pwd)/output:/output \
+# Method 1: Run as current user (recommended)
+docker run --user $(id -u):$(id -g) \
+    -v /:/system:ro \
+    -v $(pwd)/config:/config:ro \
+    -v $(pwd)/output:/output \
+    systemrecord PROJECT_NAME -c /config/default.yaml -o /output
+
+# Method 2: Create output directory with proper permissions first
+mkdir -p $(pwd)/output
+sudo chown 1000:1000 $(pwd)/output
+docker run -v /:/system:ro -v $(pwd)/config:/config:ro -v $(pwd)/output:/output \
+    systemrecord PROJECT_NAME -c /config/default.yaml -o /output
+
+# Method 3: Run as root (less secure but works)
+docker run --user root \
+    -v /:/system:ro \
+    -v $(pwd)/config:/config:ro \
+    -v $(pwd)/output:/output \
     systemrecord PROJECT_NAME -c /config/default.yaml -o /output
 ```
 
@@ -206,11 +222,26 @@ Regular system fingerprinting for security and compliance monitoring.
    - Ensure read access to target directories
    - Use Docker with appropriate volume mounts
 
-2. **Large Archives**
+2. **Docker Permission Denied on Output Directory**
+   ```bash
+   # Error: Permission denied: '/output/systemrecord.log'
+   # Solution: Run with current user permissions
+   docker run --user $(id -u):$(id -g) \
+       -v /:/system:ro \
+       -v $(pwd)/config:/config:ro \
+       -v $(pwd)/output:/output \
+       systemrecord PROJECT_NAME -c /config/default.yaml -o /output
+   
+   # Alternative: Create output directory with proper ownership
+   mkdir -p output
+   sudo chown 1000:1000 output
+   ```
+
+3. **Large Archives**
    - Adjust `max_file_size` setting
    - Refine `archive.patterns` to be more selective
 
-3. **Memory Issues**
+4. **Memory Issues**
    - Reduce scope with `paths.include` patterns
    - Increase system memory or use streaming processing
 

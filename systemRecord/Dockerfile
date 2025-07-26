@@ -30,7 +30,9 @@ RUN chmod +x src/main.py
 # Create non-root user
 RUN useradd -m -u 1000 systemrecord
 RUN chown -R systemrecord:systemrecord /app
-USER systemrecord
+
+# Don't switch to non-root user by default to avoid permission issues
+# Will be handled by the run script or user can specify --user flag
 
 # Set environment variables
 ENV PYTHONPATH=/app/src

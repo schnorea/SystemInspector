@@ -116,6 +116,7 @@ if [[ "$DOCKER_MODE" == true ]]; then
     
     DOCKER_ARGS=(
         "run" "--rm"
+        "--user" "$(id -u):$(id -g)"
         "-v" "/:/system:ro"
         "-v" "$(dirname "$CONFIG_FILE"):/config:ro"
         "-v" "$OUTPUT_DIR:/output"

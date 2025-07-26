@@ -99,7 +99,12 @@ Access the web interface at http://localhost:8080 and:
    ```bash
    cd systemRecord
    docker build -t systemrecord .
-   docker run -v /:/system:ro -v $(pwd)/config:/config -v $(pwd)/output:/output \
+   
+   # Run with proper user permissions
+   docker run --user $(id -u):$(id -g) \
+       -v /:/system:ro \
+       -v $(pwd)/config:/config:ro \
+       -v $(pwd)/output:/output \
        systemrecord PROJECT_NAME -c /config/default.yaml -o /output
    ```
 
