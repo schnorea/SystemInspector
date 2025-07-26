@@ -260,6 +260,119 @@ class ProjectAnalyzer:
                 shutil.rmtree(project['temp_dir'])
             del self.projects[project_id]
             logger.info(f"Cleaned up project {project_id}")
+    
+    def generate_mode2_config(self, project1_id: str, project2_id: str) -> Dict:
+        """Generate Mode 2 configuration based on comparison of two Mode 1 projects."""
+        if project1_id not in self.projects or project2_id not in self.projects:
+            raise ValueError("One or both projects not found")
+        
+        logger.info(f"Generating Mode 2 config from projects {project1_id} and {project2_id}")
+        
+        project1 = self.projects[project1_id]
+        project2 = self.projects[project2_id]
+        
+        manifest1 = project1['manifest']
+        manifest2 = project2['manifest']
+        
+        files1 = manifest1.get('files', {})
+        files2 = manifest2.get('files', {})
+        
+        # Find differences
+        all_paths = set(files1.keys()) | set(files2.keys())
+        
+        new_files = set()
+        deleted_files = set()
+        modified_files = set()
+        
+        for path in all_paths:
+            if path in files1 and path in files2:
+                # File exists in both - check if modified
+                file1 = files1[path]
+                file2 = files2[path]
+                
+                if file1.get('hash') != file2.get('hash'):
+                    modified_files.add(path)
+            elif path in files1:
+                # File deleted
+                deleted_files.add(path)
+            else:
+                # File added
+                new_files.add(path)
+        
+        # Generate file patterns for inclusion
+        all_changed_files = new_files | deleted_files | modified_files
+        
+        # Extract unique directories and file patterns
+        directories = set()
+        file_extensions = set()
+        specific_files = set()
+        
+        for filepath in all_changed_files:
+            # Add directory
+            directories.add(str(Path(filepath).parent))
+            
+            # Add file extension
+            suffix = Path(filepath).suffix
+            if suffix:
+                file_extensions.add(f"*{suffix}")
+            
+            # Add specific filename patterns for config files
+            name = Path(filepath).name
+            if any(pattern in name.lower() for pattern in ['conf', 'config', 'cfg', 'ini', 'yaml', 'yml', 'json']):
+                specific_files.add(name)
+        
+        # Create targeted configuration
+        mode2_config = {
+            "logging": {
+                "level": "INFO"
+            },
+            "paths": {
+                "scan": sorted(list(directories)),
+                "include": sorted(list(file_extensions | specific_files)) if (file_extensions or specific_files) else ["*"],
+                "exclude": [
+                    "*/tmp/*",
+                    "*/temp/*", 
+                    "*/.git/*",
+                    "*/__pycache__/*",
+                    "*.pyc",
+                    "*/cache/*",
+                    "*/logs/*.log.*"
+                ]
+            },
+            "archive": {
+                "max_file_size": 104857600,  # 100MB
+                "patterns": sorted(list(file_extensions | specific_files)) if (file_extensions or specific_files) else ["*"],
+                "exclude_from_archive": [
+                    "*/passwd",
+                    "*/shadow", 
+                    "*/sudoers",
+                    "*/.ssh/*",
+                    "*/ssl/private/*",
+                    "*/keys/*",
+                    "*/secrets/*"
+                ]
+            },
+            "performance": {
+                "worker_threads": 4,
+                "hash_chunk_size": 65536,
+                "max_files": 0
+            },
+            "mode2_metadata": {
+                "generated_from": {
+                    "before_project": project1_id,
+                    "after_project": project2_id,
+                    "generated_at": datetime.now().isoformat()
+                },
+                "changes_summary": {
+                    "new_files": len(new_files),
+                    "deleted_files": len(deleted_files), 
+                    "modified_files": len(modified_files),
+                    "total_changes": len(all_changed_files)
+                }
+            }
+        }
+        
+        return mode2_config
 
 # Global analyzer instance
 analyzer = ProjectAnalyzer()
@@ -447,6 +560,30 @@ def export_comparison(project1_id, project2_id, format):
     
     except Exception as e:
         logger.error(f"Error exporting comparison: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/generate-config/<project1_id>/<project2_id>', methods=['GET'])
+def generate_mode2_config(project1_id, project2_id):
+    """Generate Mode 2 configuration from two Mode 1 projects."""
+    try:
+        config = analyzer.generate_mode2_config(project1_id, project2_id)
+        
+        # Convert to YAML format for download
+        import yaml
+        yaml_content = yaml.dump(config, default_flow_style=False, sort_keys=False)
+        
+        response = app.response_class(
+            response=yaml_content,
+            status=200,
+            mimetype='application/x-yaml'
+        )
+        response.headers['Content-Disposition'] = f'attachment; filename=mode2_config_{project1_id}_{project2_id}.yaml'
+        return response
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error generating Mode 2 config: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.errorhandler(413)

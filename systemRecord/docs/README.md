@@ -2,7 +2,23 @@
 
 ## Overview
 
-systemRecord is a tool for creating detailed system fingerprints by analyzing files and directories, generating SHA256 hashes, and archiving selected files into a tar project file. It's designed to capture system state before and after application installations for comparison purposes.
+systemRecord is a tool for creating detailed system fingerprints with two distinct operational modes:
+
+**Mode 1 - Broad Fingerprinting:**
+- Scans the entire file system structure to identify all changes
+- Records SHA256 hashes and metadata for all files (excluding ignore patterns)
+- No file archiving - focuses on change detection and identification
+- Creates comprehensive baseline for comparison
+- Ideal for initial analysis and change discovery
+
+**Mode 2 - Targeted Analysis:**
+- Focused scanning based on known changes (from Mode 1 or manual configuration)
+- Archives actual file contents for detailed diff analysis
+- Uses targeted configuration to examine specific files and directories
+- Enables detailed before/after file content comparison
+- Ideal for in-depth analysis of specific changes
+
+The tool is designed to work in a two-phase approach: use Mode 1 to identify what changed, then use Mode 2 for detailed analysis of those changes.
 
 ## Features
 
@@ -40,18 +56,37 @@ systemRecord is a tool for creating detailed system fingerprints by analyzing fi
 ### Command Line
 
 ```bash
-python src/main.py PROJECT_NAME -c CONFIG_FILE [OPTIONS]
+# Recording system state
+python src/main.py record PROJECT_NAME -c CONFIG_FILE [OPTIONS]
+
+# Generating Mode 2 configuration
+python src/main.py generate-config BEFORE_PROJECT AFTER_PROJECT -o OUTPUT_CONFIG [OPTIONS]
 ```
 
-**Arguments:**
+**Record Command Arguments:**
 - `PROJECT_NAME`: Name for the project archive
 - `-c, --config`: Path to configuration file (required)
+- `-m, --mode`: Mode 1 (broad) or 2 (targeted) - default: 1
 - `-o, --output`: Output directory (default: output)
 - `-v, --verbose`: Enable verbose logging
 
-**Example:**
+**Generate-Config Command Arguments:**
+- `BEFORE_PROJECT`: Path to before project tar file (Mode 1)
+- `AFTER_PROJECT`: Path to after project tar file (Mode 1)
+- `-o, --output`: Output path for generated config file (required)
+- `-v, --verbose`: Enable verbose logging
+
+**Examples:**
+
 ```bash
-python src/main.py before_install -c config/default.yaml -o /tmp/output
+# Mode 1: Broad fingerprinting
+python src/main.py record before_install -c config/mode1.yaml -m 1 -o /tmp/output
+
+# Generate targeted config from Mode 1 comparison
+python src/main.py generate-config before_install.tar.gz after_install.tar.gz -o config/targeted.yaml
+
+# Mode 2: Targeted analysis with archiving
+python src/main.py record before_detailed -c config/targeted.yaml -m 2 -o /tmp/output
 ```
 
 ### Docker Usage
@@ -178,19 +213,58 @@ systemRecord generates:
 
 ## Use Cases
 
-### Before/After Application Installation
+### Two-Phase Analysis Workflow
 
-1. **Before installation:**
+**Phase 1: Broad Change Detection (Mode 1)**
+
+1. **Before changes:**
    ```bash
-   python src/main.py before_install -c config/app_config.yaml
+   python src/main.py record before_install -c config/mode1.yaml -m 1
    ```
 
-2. **After installation:**
+2. **After changes:**
    ```bash
-   python src/main.py after_install -c config/app_config.yaml
+   python src/main.py record after_install -c config/mode1.yaml -m 1
    ```
 
-3. **Compare with systemDiff tool** (see systemDiff documentation)
+3. **Generate targeted configuration:**
+   ```bash
+   python src/main.py generate-config before_install.tar.gz after_install.tar.gz -o config/targeted.yaml
+   ```
+
+**Phase 2: Detailed Analysis (Mode 2)**
+
+4. **Before changes (reset system to original state):**
+   ```bash
+   python src/main.py record before_detailed -c config/targeted.yaml -m 2
+   ```
+
+5. **After changes (repeat the same changes):**
+   ```bash
+   python src/main.py record after_detailed -c config/targeted.yaml -m 2
+   ```
+
+6. **Compare with systemDiff tool** for detailed file content analysis
+
+### Single-Phase Workflows
+
+**Mode 1 Only - Change Identification:**
+```bash
+# Before
+python src/main.py record baseline -c config/mode1.yaml -m 1
+
+# After changes  
+python src/main.py record modified -c config/mode1.yaml -m 1
+
+# Compare in systemDiff to see what files changed
+```
+
+**Mode 2 Only - Detailed Monitoring:**
+```bash
+# Use pre-configured targeted config
+python src/main.py record app_before -c config/app_specific.yaml -m 2
+python src/main.py record app_after -c config/app_specific.yaml -m 2
+```
 
 ### System Backup Verification
 

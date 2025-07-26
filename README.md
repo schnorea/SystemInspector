@@ -20,13 +20,20 @@ System Inspector helps you track and analyze system changes by creating detailed
 
 ### systemRecord
 
-A command-line tool that creates comprehensive system fingerprints by:
+A command-line tool that creates comprehensive system fingerprints with two distinct modes:
 
-- Scanning specified directories and files
-- Generating SHA256 hashes for file integrity checking
-- Collecting file metadata (permissions, ownership, timestamps)
-- Archiving selected files for detailed comparison
-- Packaging everything into a portable tar project file
+**Mode 1 - Broad Fingerprinting:**
+- Scans the entire file system structure
+- Records file hashes and metadata for all files (excluding ignore patterns)
+- No file archiving - focuses on identifying what changed
+- Ideal for initial system analysis and change detection
+- Creates a comprehensive baseline of system state
+
+**Mode 2 - Targeted Analysis:**
+- Focused scanning based on known changes (typically from Mode 1 comparison)
+- Archives actual file contents for detailed comparison
+- Uses targeted configuration to examine specific files and directories
+- Ideal for detailed analysis of specific changes
 
 **Key Features:**
 - Configuration-driven path selection
@@ -39,35 +46,52 @@ A command-line tool that creates comprehensive system fingerprints by:
 
 A web-based application for comparing systemRecord projects:
 
-- Interactive project upload interface
+- Interactive project upload interface with mode detection
 - Side-by-side system state comparison
 - File-level diff visualization
+- **Mode 2 Configuration Generation** - Automatically creates targeted configs from Mode 1 comparisons
 - Change statistics and analytics
-- Export capabilities (JSON, CSV)
+- Export capabilities (JSON, CSV, YAML configs)
 - Modern responsive web interface
 
 **Key Features:**
-- Drag-and-drop project upload
+- Drag-and-drop project upload with mode recognition
 - Real-time comparison results
 - Detailed file diff viewer
 - Change categorization (new, modified, deleted)
+- Automatic Mode 2 config generation from Mode 1 projects
 - Export and reporting capabilities
 
 ## Quick Start
 
 ### 1. Create System Fingerprints
 
-First, use systemRecord to capture system state before making changes:
+**Mode 1 - Initial broad analysis:**
 
 ```bash
 cd systemRecord
-python src/main.py before_install -c config/default.yaml -o output/
+# Use Mode 1 for broad system fingerprinting
+python src/main.py record before_install -c config/mode1.yaml -m 1 -o output/
 ```
 
-After making your changes (installing software, etc.), capture the new state:
+Make your changes (install software, etc.), then capture the new state:
 
 ```bash
-python src/main.py after_install -c config/default.yaml -o output/
+python src/main.py record after_install -c config/mode1.yaml -m 1 -o output/
+```
+
+**Mode 2 - Targeted analysis:**
+
+After Mode 1 comparison, generate a targeted configuration and perform detailed analysis:
+
+```bash
+# Generate Mode 2 config from Mode 1 comparison
+python src/main.py generate-config output/before_install.tar.gz output/after_install.tar.gz -o config/targeted.yaml
+
+# Use Mode 2 for detailed analysis with archiving
+python src/main.py record before_detailed -c config/targeted.yaml -m 2 -o output/
+# (Make the same changes again)
+python src/main.py record after_detailed -c config/targeted.yaml -m 2 -o output/
 ```
 
 ### 2. Compare Changes
@@ -81,9 +105,9 @@ docker-compose up --build
 
 Access the web interface at http://localhost:8080 and:
 
-1. Upload your "before_install.tar.gz" project
-2. Upload your "after_install.tar.gz" project  
-3. Compare the projects to see what changed
+1. Upload your Mode 1 projects to see broad changes
+2. Generate Mode 2 configuration directly in the web interface
+3. Upload Mode 2 projects for detailed file content comparison
 4. Explore file differences and export results
 
 ## Installation

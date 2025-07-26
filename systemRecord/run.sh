@@ -9,30 +9,41 @@ PROJECT_NAME=""
 OUTPUT_DIR="./output"
 DOCKER_MODE=false
 VERBOSE=false
+MODE=1
+COMMAND="record"
 
 # Function to show usage
 show_usage() {
     cat << EOF
-Usage: $0 [OPTIONS] PROJECT_NAME
+Usage: $0 [OPTIONS] COMMAND ARGS
 
 systemRecord - System Fingerprinting Tool Runner
 
-ARGUMENTS:
-    PROJECT_NAME        Name for the project archive
+COMMANDS:
+    record PROJECT_NAME     Record system fingerprint
+    generate-config BEFORE AFTER    Generate Mode 2 config from Mode 1 projects
 
-OPTIONS:
-    -c, --config FILE   Configuration file (required)
-    -o, --output DIR    Output directory (default: ./output)
-    -d, --docker        Run in Docker mode
-    -v, --verbose       Enable verbose output
-    -h, --help          Show this help message
+RECORD OPTIONS:
+    -c, --config FILE       Configuration file (required)
+    -m, --mode MODE         Mode: 1=Broad fingerprinting, 2=Targeted (default: 1)
+    -o, --output DIR        Output directory (default: ./output)
+    -d, --docker            Run in Docker mode
+    -v, --verbose           Enable verbose output
+    -h, --help              Show this help message
+
+GENERATE-CONFIG OPTIONS:
+    -o, --output FILE       Output config file (required)
+    -v, --verbose           Enable verbose output
 
 EXAMPLES:
-    # Local execution
-    $0 -c config/default.yaml before_install
+    # Mode 1 recording
+    $0 record -c config/mode1.yaml -m 1 before_install
     
-    # Docker execution
-    $0 -d -c config/default.yaml -o /tmp/output after_install
+    # Generate targeted config
+    $0 generate-config before.tar.gz after.tar.gz -o config/targeted.yaml
+    
+    # Mode 2 recording with Docker
+    $0 record -d -c config/targeted.yaml -m 2 detailed_before
 
 EOF
 }

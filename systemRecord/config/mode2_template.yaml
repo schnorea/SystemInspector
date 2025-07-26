@@ -1,0 +1,102 @@
+# systemRecord Mode 2 Configuration File
+# Mode 2: Targeted examination with archiving
+# This configuration should be generated from Mode 1 comparison using generate-config command
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# Path configuration for Mode 2 - Targeted scope
+paths:
+  # Paths to scan (will be populated by generate-config)
+  scan:
+    - "/etc"
+    - "/usr/local"
+    - "/opt"
+    - "/var/log"
+    - "/home"
+  
+  # Include patterns (will be populated based on detected changes)
+  include:
+    - "*.conf"
+    - "*.config"
+    - "*.cfg"
+    - "*.ini"
+    - "*.json"
+    - "*.yaml"
+    - "*.yml"
+    - "*.xml"
+    - "*.properties"
+    - "*.log"
+    - "*.txt"
+    - "*.sh"
+    - "*.py"
+    - "*.js"
+    - "*.html"
+    - "*.css"
+  
+  # Exclude patterns (glob patterns)
+  exclude:
+    - "*/tmp/*"
+    - "*/temp/*"
+    - "*/.git/*"
+    - "*/.svn/*"
+    - "*/node_modules/*"
+    - "*/__pycache__/*"
+    - "*.pyc"
+    - "*.pyo"
+    - "*.class"
+    - "*.o"
+    - "*.so"
+    - "*.dylib"
+    - "*.dll"
+    - "*/cache/*"
+    - "*/Cache/*"
+    - "*/.cache/*"
+    - "*/logs/*.log.*"  # Exclude rotated log files
+    - "*/core"
+    - "*/core.*"
+
+# Archive configuration for Mode 2
+archive:
+  # Maximum file size to archive (in bytes)
+  max_file_size: 104857600  # 100 MB
+  
+  # Patterns for files to archive (will be populated by generate-config)
+  patterns:
+    - "*.conf"
+    - "*.config"
+    - "*.cfg"
+    - "*.ini"
+    - "*.json"
+    - "*.yaml"
+    - "*.yml"
+    - "*.xml"
+    - "*.properties"
+    - "*.sh"
+    - "*.py"
+    - "*.js"
+    - "*.html"
+    - "*.css"
+    - "*.txt"
+  
+  # Exclude specific files from archiving even if they match patterns
+  exclude_from_archive:
+    - "*/passwd"
+    - "*/shadow"
+    - "*/sudoers"
+    - "*/.ssh/*"
+    - "*/ssl/private/*"
+    - "*/keys/*"
+    - "*/secrets/*"
+
+# Performance settings
+performance:
+  # Moderate threading for targeted scan
+  worker_threads: 4
+  
+  # Standard chunk size
+  hash_chunk_size: 65536  # 64KB
+  
+  # Maximum files to process (0 = unlimited)
+  max_files: 0

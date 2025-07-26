@@ -1,0 +1,101 @@
+# systemRecord Mode 1 Configuration File
+# Mode 1: Broad fingerprinting with no archiving
+# This mode scans the entire file system structure to identify all changes
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# Path configuration for Mode 1 - Broad scope
+paths:
+  # Paths to scan for system fingerprinting (broad coverage)
+  scan:
+    - "/"  # Scan entire filesystem
+  
+  # Mode 1: No include patterns - scan everything except exclusions
+  # include: []  # Empty means include all files
+  
+  # Exclude patterns (glob patterns) - Focus on excluding system/temp files
+  exclude:
+    # System directories that change frequently
+    - "/proc/*"
+    - "/sys/*"
+    - "/dev/*"
+    - "/run/*"
+    - "/tmp/*"
+    - "/var/tmp/*"
+    - "/var/run/*"
+    - "/var/lock/*"
+    
+    # Cache and temporary files
+    - "*/cache/*"
+    - "*/Cache/*"
+    - "*/.cache/*"
+    - "*/tmp/*"
+    - "*/temp/*"
+    - "*.tmp"
+    - "*.temp"
+    
+    # Version control systems
+    - "*/.git/*"
+    - "*/.svn/*"
+    - "*/.hg/*"
+    
+    # Development artifacts
+    - "*/node_modules/*"
+    - "*/__pycache__/*"
+    - "*.pyc"
+    - "*.pyo"
+    - "*.class"
+    - "*.o"
+    - "*.so"
+    - "*.dylib"
+    - "*.dll"
+    
+    # Log files that rotate
+    - "*/logs/*.log.*"
+    - "*/log/*.log.*"
+    - "*.log.*"
+    
+    # Large media files (focus on system changes)
+    - "*.iso"
+    - "*.img"
+    - "*.dmg"
+    - "*.avi"
+    - "*.mp4"
+    - "*.mkv"
+    - "*.mov"
+    
+    # Core dumps and backup files
+    - "*/core"
+    - "*/core.*"
+    - "*~"
+    - "*.bak"
+    - "*.backup"
+    
+    # Package manager caches
+    - "/var/cache/apt/*"
+    - "/var/cache/yum/*"
+    - "/var/cache/dnf/*"
+    
+    # User-specific temporary data
+    - "/home/*/.thumbnails/*"
+    - "/home/*/.local/share/Trash/*"
+    - "/home/*/Downloads/*"  # Usually not system-related
+
+# Archive configuration for Mode 1
+archive:
+  # Mode 1: No archiving - only fingerprinting
+  max_file_size: 0  # Don't archive any files
+  patterns: []      # No archiving patterns
+
+# Performance settings
+performance:
+  # More aggressive for full filesystem scan
+  worker_threads: 8
+  
+  # Larger chunk size for faster hashing
+  hash_chunk_size: 131072  # 128KB
+  
+  # Maximum files to process (0 = unlimited)
+  max_files: 0
