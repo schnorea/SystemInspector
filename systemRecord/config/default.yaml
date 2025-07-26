@@ -1,0 +1,105 @@
+# systemRecord Configuration File
+# This file defines what paths to scan, what to include/exclude, and archiving rules
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# Path configuration
+paths:
+  # Paths to scan for system fingerprinting
+  scan:
+    - "/etc"
+    - "/usr/local"
+    - "/opt"
+    - "/var/log"
+    - "/home"
+  
+  # Include patterns (glob patterns)
+  # If specified, only paths matching these patterns will be included
+  include:
+    - "*.conf"
+    - "*.config"
+    - "*.cfg"
+    - "*.ini"
+    - "*.json"
+    - "*.yaml"
+    - "*.yml"
+    - "*.xml"
+    - "*.properties"
+    - "*.log"
+    - "*.txt"
+    - "*.sh"
+    - "*.py"
+    - "*.js"
+    - "*.html"
+    - "*.css"
+  
+  # Exclude patterns (glob patterns)
+  # Paths matching these patterns will be excluded
+  exclude:
+    - "*/tmp/*"
+    - "*/temp/*"
+    - "*/.git/*"
+    - "*/.svn/*"
+    - "*/node_modules/*"
+    - "*/__pycache__/*"
+    - "*.pyc"
+    - "*.pyo"
+    - "*.class"
+    - "*.o"
+    - "*.so"
+    - "*.dylib"
+    - "*.dll"
+    - "*/cache/*"
+    - "*/Cache/*"
+    - "*/.cache/*"
+    - "*/logs/*.log.*"  # Exclude rotated log files
+    - "*/core"
+    - "*/core.*"
+
+# Archive configuration
+archive:
+  # Maximum file size to archive (in bytes)
+  # Files larger than this will be fingerprinted but not archived
+  max_file_size: 104857600  # 100 MB
+  
+  # Patterns for files to archive (glob patterns)
+  # Only files matching these patterns will be included in the archive
+  patterns:
+    - "*.conf"
+    - "*.config"
+    - "*.cfg"
+    - "*.ini"
+    - "*.json"
+    - "*.yaml"
+    - "*.yml"
+    - "*.xml"
+    - "*.properties"
+    - "*.sh"
+    - "*.py"
+    - "*.js"
+    - "*.html"
+    - "*.css"
+    - "*.txt"
+  
+  # Exclude specific files from archiving even if they match patterns
+  exclude_from_archive:
+    - "*/passwd"
+    - "*/shadow"
+    - "*/sudoers"
+    - "*/.ssh/*"
+    - "*/ssl/private/*"
+    - "*/keys/*"
+    - "*/secrets/*"
+
+# Performance settings
+performance:
+  # Number of worker threads for file processing
+  worker_threads: 4
+  
+  # Chunk size for file hashing (bytes)
+  hash_chunk_size: 65536  # 64KB
+  
+  # Maximum files to process (0 = unlimited)
+  max_files: 0
