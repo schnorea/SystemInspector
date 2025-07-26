@@ -189,22 +189,57 @@ class SystemRecorder:
     
     def _calculate_hash(self, filepath: str) -> str:
         """Calculate SHA256 hash of a file."""
-        sha256_hash = hashlib.sha256()
         try:
+            # Handle symbolic links
+            if os.path.islink(filepath):
+                # For symbolic links, hash the target path, not the file content
+                target = os.readlink(filepath)
+                sha256_hash = hashlib.sha256()
+                sha256_hash.update(target.encode('utf-8'))
+                return f"symlink:{sha256_hash.hexdigest()}"
+            
+            # Handle regular files
+            if not os.path.isfile(filepath):
+                return ""
+            
+            sha256_hash = hashlib.sha256()
             with open(filepath, "rb") as f:
-                for chunk in iter(lambda: f.read(4096), b""):
+                chunk_size = self.config.get('performance', {}).get('hash_chunk_size', 4096)
+                for chunk in iter(lambda: f.read(chunk_size), b""):
                     sha256_hash.update(chunk)
             return sha256_hash.hexdigest()
+            
+        except (OSError, IOError) as e:
+            self.logger.warning(f"Could not calculate hash for {filepath}: {e}")
+            return f"error:hash_failed"
         except Exception as e:
-            self.logger.error(f"Error calculating hash for {filepath}: {e}")
+            self.logger.error(f"Unexpected error calculating hash for {filepath}: {e}")
             self.manifest["errors"].append(f"Hash calculation failed for {filepath}: {e}")
             return ""
     
     def _get_file_metadata(self, filepath: str) -> Dict:
         """Get file metadata including permissions, ownership, and timestamps."""
         try:
-            stat_info = os.stat(filepath)
-            return {
+            # Use lstat for symbolic links to avoid following broken links
+            # Use stat for regular files to get proper metadata
+            is_symlink = os.path.islink(filepath)
+            
+            if is_symlink:
+                # For symbolic links, use lstat to get link metadata, not target
+                stat_info = os.lstat(filepath)
+                # Try to get target information safely
+                try:
+                    target = os.readlink(filepath)
+                    target_exists = os.path.exists(filepath)  # This follows the link
+                except (OSError, ValueError):
+                    target = None
+                    target_exists = False
+            else:
+                stat_info = os.stat(filepath)
+                target = None
+                target_exists = True
+            
+            metadata = {
                 "size": stat_info.st_size,
                 "mode": oct(stat_info.st_mode),
                 "uid": stat_info.st_uid,
@@ -212,12 +247,36 @@ class SystemRecorder:
                 "mtime": stat_info.st_mtime,
                 "ctime": stat_info.st_ctime,
                 "atime": stat_info.st_atime,
-                "is_symlink": os.path.islink(filepath),
-                "is_directory": os.path.isdir(filepath),
-                "is_file": os.path.isfile(filepath)
+                "is_symlink": is_symlink,
+                "is_directory": os.path.isdir(filepath) if not is_symlink else False,
+                "is_file": os.path.isfile(filepath) if not is_symlink else False
+            }
+            
+            # Add symlink-specific metadata
+            if is_symlink:
+                metadata["symlink_target"] = target
+                metadata["symlink_target_exists"] = target_exists
+                
+            return metadata
+            
+        except (OSError, IOError, ValueError) as e:
+            self.logger.warning(f"Could not get metadata for {filepath}: {e}")
+            # Return minimal metadata for problematic files
+            return {
+                "size": 0,
+                "mode": "0o000000",
+                "uid": -1,
+                "gid": -1,
+                "mtime": 0,
+                "ctime": 0,
+                "atime": 0,
+                "is_symlink": os.path.islink(filepath) if os.path.exists(filepath) else False,
+                "is_directory": False,
+                "is_file": False,
+                "error": str(e)
             }
         except Exception as e:
-            self.logger.error(f"Error getting metadata for {filepath}: {e}")
+            self.logger.error(f"Unexpected error getting metadata for {filepath}: {e}")
             return {}
     
     def _scan_directory(self, root_path: str) -> None:
@@ -244,7 +303,7 @@ class SystemRecorder:
                         file_info = {
                             "path": filepath,
                             "metadata": metadata,
-                            "hash": self._calculate_hash(filepath) if metadata.get("is_file") else "",
+                            "hash": self._calculate_hash(filepath) if (metadata.get("is_file") or metadata.get("is_symlink")) else "",
                             "archived": False
                         }
                         
