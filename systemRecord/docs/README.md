@@ -51,6 +51,77 @@ The tool is designed to work in a two-phase approach: use Mode 1 to identify wha
    docker build -t systemrecord .
    ```
 
+## Quick Start
+
+### Using Python Directly
+
+1. **Install dependencies:**
+   ```bash
+   cd systemRecord
+   pip install -r requirements.txt
+   ```
+
+2. **Create a basic configuration:**
+   ```bash
+   cp config/mode1.yaml config/my-config.yaml
+   # Edit config/my-config.yaml as needed
+   ```
+
+3. **Record system state:**
+   ```bash
+   # Mode 1: Broad fingerprinting
+   python src/main.py record before_install -c config/my-config.yaml -m 1 -o output/
+   
+   # Make your changes (install software, etc.)
+   
+   # Capture after state
+   python src/main.py record after_install -c config/my-config.yaml -m 1 -o output/
+   ```
+
+### Using Docker (Recommended)
+
+1. **Build the container:**
+   ```bash
+   cd systemRecord
+   docker build -t systemrecord .
+   ```
+
+2. **Record system state using run.sh script:**
+   ```bash
+   # Mode 1: Broad fingerprinting
+   ./run.sh record before_install -c config/mode1.yaml -m 1
+   
+   # Make your changes (install software, etc.)
+   
+   # Capture after state
+   ./run.sh record after_install -c config/mode1.yaml -m 1
+   ```
+
+3. **Or run Docker manually:**
+   ```bash
+   # Mode 1: Broad fingerprinting
+   docker run --user $(id -u):$(id -g) \
+       -v /:/system:ro \
+       -v $(pwd)/config:/config:ro \
+       -v $(pwd)/output:/output \
+       systemrecord record before_install -c /config/mode1.yaml -m 1
+   ```
+
+3. **Generate Mode 2 configuration (optional):**
+   ```bash
+   # Using run.sh script
+   ./run.sh generate-config output/before_install.tar.gz output/after_install.tar.gz -o config/targeted.yaml
+   
+   # Or using Docker directly
+   docker run --user $(id -u):$(id -g) \
+       -v $(pwd)/output:/output \
+       -v $(pwd)/config:/config \
+       systemrecord generate-config /output/before_install.tar.gz /output/after_install.tar.gz -o /config/targeted.yaml
+   
+   # Python
+   python src/main.py generate-config output/before_install.tar.gz output/after_install.tar.gz -o config/targeted.yaml
+   ```
+
 ## Usage
 
 ### Command Line
@@ -88,6 +159,38 @@ python src/main.py generate-config before_install.tar.gz after_install.tar.gz -o
 # Mode 2: Targeted analysis with archiving
 python src/main.py record before_detailed -c config/targeted.yaml -m 2 -o /tmp/output
 ```
+
+### Convenience Script (run.sh)
+
+The `run.sh` script provides a simplified interface for running systemRecord with Docker. It automatically handles Docker build, volume mounting, and user permissions.
+
+**Basic usage:**
+```bash
+# Record system state
+./run.sh record PROJECT_NAME -c CONFIG_FILE [OPTIONS]
+
+# Generate Mode 2 configuration
+./run.sh generate-config BEFORE_PROJECT AFTER_PROJECT -o OUTPUT_CONFIG [OPTIONS]
+```
+
+**Examples:**
+```bash
+# Mode 1: Broad fingerprinting
+./run.sh record before_install -c config/mode1.yaml -m 1
+
+# Mode 2: Targeted analysis
+./run.sh record detailed_scan -c config/targeted.yaml -m 2
+
+# Generate config from comparison
+./run.sh generate-config output/before_install.tar.gz output/after_install.tar.gz -o config/targeted.yaml
+```
+
+The script automatically:
+- Builds the Docker container if needed
+- Mounts the root filesystem as read-only
+- Mounts config and output directories
+- Sets proper user permissions
+- Passes all arguments to the systemRecord application
 
 ### Docker Usage
 

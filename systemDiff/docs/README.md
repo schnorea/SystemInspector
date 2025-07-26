@@ -46,26 +46,45 @@ systemDiff is a web-based tool for comparing systemRecord project files and visu
 - Chart.js for data visualization
 - Monaco editor integration for diff viewing
 
-## Installation
+## Installation & Quick Start
 
 ### Prerequisites
 
-- Docker and Docker Compose
-- Or Python 3.11+ and Node.js for local development
+- **Docker and Docker Compose** (recommended)
+- **Or Python 3.11+** for local development
 
-### Docker Installation (Recommended)
+### Quick Start with Docker (Recommended)
 
-1. Navigate to the systemDiff directory:
+1. **Navigate to the systemDiff directory:**
    ```bash
    cd systemDiff
    ```
 
-2. Build and start the services:
+2. **Build and start the services:**
    ```bash
    docker-compose up --build
    ```
 
-3. Access the application:
+3. **Access the application:**
+   - Frontend: http://localhost:8080
+   - Backend API: http://localhost:5566
+
+### Quick Start with Python
+
+1. **Start the backend:**
+   ```bash
+   cd systemDiff/backend
+   pip install -r requirements.txt
+   python src/app.py
+   ```
+
+2. **Start the frontend (in another terminal):**
+   ```bash
+   cd systemDiff/frontend/public
+   python -m http.server 8080
+   ```
+
+3. **Access the application:**
    - Frontend: http://localhost:8080
    - Backend API: http://localhost:5000
 
@@ -75,6 +94,9 @@ systemDiff is a web-based tool for comparing systemRecord project files and visu
 ```bash
 cd backend
 pip install -r requirements.txt
+
+# For development with auto-reload
+export FLASK_ENV=development
 python src/app.py
 ```
 
@@ -83,6 +105,9 @@ The frontend is static HTML/JS, serve with any web server:
 ```bash
 cd frontend/public
 python -m http.server 8080
+
+# Or with Node.js
+npx http-server -p 8080
 ```
 
 ## Usage

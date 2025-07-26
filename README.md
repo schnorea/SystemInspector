@@ -88,14 +88,31 @@ A web-based application for comparing systemRecord projects:
 
 **Mode 1 - Initial broad analysis:**
 
+**Using Docker (Recommended):**
 ```bash
 cd systemRecord
+# Use Mode 1 for broad system fingerprinting
+./run.sh record before_install -c config/mode1.yaml -m 1
+```
+
+**Using Python directly:**
+```bash
+cd systemRecord
+# Install dependencies
+pip install -r requirements.txt
+
 # Use Mode 1 for broad system fingerprinting
 python src/main.py record before_install -c config/mode1.yaml -m 1 -o output/
 ```
 
 Make your changes (install software, etc.), then capture the new state:
 
+**Docker:**
+```bash
+./run.sh record after_install -c config/mode1.yaml -m 1
+```
+
+**Python:**
 ```bash
 python src/main.py record after_install -c config/mode1.yaml -m 1 -o output/
 ```
@@ -104,6 +121,18 @@ python src/main.py record after_install -c config/mode1.yaml -m 1 -o output/
 
 After Mode 1 comparison, generate a targeted configuration and perform detailed analysis:
 
+**Docker:**
+```bash
+# Generate Mode 2 config from Mode 1 comparison
+./run.sh generate-config output/before_install.tar.gz output/after_install.tar.gz -o config/targeted.yaml
+
+# Use Mode 2 for detailed analysis with archiving
+./run.sh record before_detailed -c config/targeted.yaml -m 2
+# (Make the same changes again)
+./run.sh record after_detailed -c config/targeted.yaml -m 2
+```
+
+**Python:**
 ```bash
 # Generate Mode 2 config from Mode 1 comparison
 python src/main.py generate-config output/before_install.tar.gz output/after_install.tar.gz -o config/targeted.yaml
@@ -116,11 +145,24 @@ python src/main.py record after_detailed -c config/targeted.yaml -m 2 -o output/
 
 ### 2. Compare Changes
 
-Start the systemDiff web application:
-
+**Using Docker (Recommended):**
 ```bash
 cd systemDiff
 docker-compose up --build
+```
+
+**Using Python locally:**
+```bash
+cd systemDiff
+
+# Start backend
+cd backend
+pip install -r requirements.txt
+python src/app.py &
+
+# Start frontend (in another terminal)
+cd ../frontend/public
+python -m http.server 8080
 ```
 
 Access the web interface at http://localhost:8080 and:
@@ -154,14 +196,16 @@ Access the web interface at http://localhost:8080 and:
 1. **systemRecord with Docker:**
    ```bash
    cd systemRecord
-   docker build -t systemrecord .
+   # Use the convenience script (recommended)
+   ./run.sh record PROJECT_NAME -c config/mode1.yaml -m 1
    
-   # Run with proper user permissions
+   # Or build and run manually
+   docker build -t systemrecord .
    docker run --user $(id -u):$(id -g) \
        -v /:/system:ro \
        -v $(pwd)/config:/config:ro \
        -v $(pwd)/output:/output \
-       systemrecord PROJECT_NAME -c /config/default.yaml -o /output
+       systemrecord record PROJECT_NAME -c /config/mode1.yaml -m 1
    ```
 
 2. **systemDiff with Docker:**
@@ -226,23 +270,62 @@ systemDiff uses minimal configuration - mainly API endpoint settings in the fron
 
 ### Example 1: Software Installation Analysis
 
+**Using Docker:**
 ```bash
 # 1. Capture baseline
-systemRecord/run.sh -c systemRecord/config/default.yaml before_install
+cd systemRecord
+./run.sh record before_install -c config/mode1.yaml -m 1
 
 # 2. Install your software
 sudo apt install nginx
 
 # 3. Capture changes  
-systemRecord/run.sh -c systemRecord/config/default.yaml after_install
+./run.sh record after_install -c config/mode1.yaml -m 1
 
 # 4. Compare in systemDiff web interface
-cd systemDiff && docker-compose up
+cd ../systemDiff && docker-compose up
+# Open http://localhost:8080 and upload both project files
+```
+
+**Using Python:**
+```bash
+# 1. Capture baseline
+cd systemRecord
+python src/main.py record before_install -c config/mode1.yaml -m 1 -o output/
+
+# 2. Install your software
+sudo apt install nginx
+
+# 3. Capture changes  
+python src/main.py record after_install -c config/mode1.yaml -m 1 -o output/
+
+# 4. Compare in systemDiff web interface
+cd ../systemDiff/backend && python src/app.py &
+cd ../frontend/public && python -m http.server 8080
 # Open http://localhost:8080 and upload both project files
 ```
 
 ### Example 2: Configuration Change Tracking
 
+**Using Docker:**
+```bash
+# Focus on configuration directories - create config file
+cat > config/configs_only.yaml << EOF
+paths:
+  scan: ["/etc", "/usr/local/etc"]
+  include: ["*.conf", "*.config", "*.cfg", "*.ini"]
+archive:
+  patterns: ["*.conf", "*.config", "*.cfg", "*.ini"]
+EOF
+
+# Before configuration changes
+./run.sh record config_before -c config/configs_only.yaml
+
+# After making configuration changes  
+./run.sh record config_after -c config/configs_only.yaml
+```
+
+**Using Python:**
 ```bash
 # Focus on configuration directories
 cat > config/configs_only.yaml << EOF
@@ -254,16 +337,17 @@ archive:
 EOF
 
 # Before configuration changes
-python systemRecord/src/main.py config_before -c config/configs_only.yaml
+python src/main.py record config_before -c config/configs_only.yaml -o output/
 
 # After making configuration changes  
-python systemRecord/src/main.py config_after -c config/configs_only.yaml
+python src/main.py record config_after -c config/configs_only.yaml -o output/
 
 # Compare in systemDiff
 ```
 
 ### Example 3: System Compliance Monitoring
 
+**Using Docker:**
 ```bash
 # Create compliance-focused configuration
 cat > config/compliance.yaml << EOF
@@ -276,7 +360,23 @@ archive:
 EOF
 
 # Regular compliance snapshots
-python systemRecord/src/main.py compliance_$(date +%Y%m%d) -c config/compliance.yaml
+./run.sh record compliance_$(date +%Y%m%d) -c config/compliance.yaml
+```
+
+**Using Python:**
+```bash
+# Create compliance-focused configuration
+cat > config/compliance.yaml << EOF
+paths:
+  scan: ["/etc", "/usr", "/var/log"]
+  exclude: ["*/tmp/*", "*/cache/*"]
+archive:
+  max_file_size: 10485760  # 10MB
+  patterns: ["*.conf", "*.log", "*.policy"]
+EOF
+
+# Regular compliance snapshots
+python src/main.py record compliance_$(date +%Y%m%d) -c config/compliance.yaml -o output/
 ```
 
 ## Project Structure
@@ -309,13 +409,14 @@ systemInspector/
 Track what changes when installing software packages:
 ```bash
 # Before installation
-./run.sh record -c config/mode1.yaml -m 1 before_install
+cd systemRecord
+./run.sh record before_install -c config/mode1.yaml -m 1
 
 # Install your software
 sudo apt install my-software
 
 # After installation  
-./run.sh record -c config/mode1.yaml -m 1 after_install
+./run.sh record after_install -c config/mode1.yaml -m 1
 
 # Compare in systemDiff to see all changes
 ```
