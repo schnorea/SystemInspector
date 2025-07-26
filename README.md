@@ -6,7 +6,7 @@ A comprehensive toolkit for system fingerprinting and change analysis, consistin
 2. **systemDiff** - Web-based comparison tool for analyzing system changes
 
 ![systemDiff Web Interface](docs/systemdiff-screenshot.png)
-<img src="/docs/systemdiff-screenshot.png?raw=true" alt="drawing" width="1000"/>
+<!-- <img src="/docs/systemdiff-screenshot.png?raw=true" alt="drawing" width="1000"/> -->
 
 ## Table of Contents
 
