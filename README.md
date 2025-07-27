@@ -21,7 +21,7 @@ A comprehensive toolkit for system fingerprinting and change analysis, consistin
 - [Use Cases](#use-cases)
 - [Contributing](#contributing)
 
-## Overview
+## Overview 
 
 System Inspector helps you track and analyze system changes by creating detailed fingerprints of your system before and after modifications (such as software installations, updates, or configuration changes). This is particularly useful for:
 
